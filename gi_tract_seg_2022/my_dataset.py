@@ -84,4 +84,5 @@ class GIDataset(Dataset):
             return img_data, mask_data
     
     def __len__(self):
-        return len(self.fns)
+        # return len(self.fns)
+        return 1000

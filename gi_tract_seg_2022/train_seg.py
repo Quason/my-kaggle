@@ -19,11 +19,9 @@ from gi_tract_seg_2022.config import LABEL_SMOOTHING
 
 def metrics(mask, mask_pred):
     label_pred = torch.argmax(mask_pred, dim=1)
-    intersect = (mask == label_pred) * (mask != 0) * (label_pred != 0)
-    union = (mask != 0) + (label_pred != 0)
-    miou = torch.sum(intersect) * 2 / torch.sum(union)
-    oa = torch.sum(mask == label_pred) / mask.numel()
-    return oa.cpu(), miou.cpu()
+    intersect = torch.sum((mask == label_pred) * (mask != 0))
+    union = torch.sum((mask != 0) + (label_pred != 0))
+    return intersect.cpu(), union.cpu()
 
 
 def train(train_dir, test_dir, model_type, save_dir,
@@ -55,13 +53,9 @@ def train(train_dir, test_dir, model_type, save_dir,
     test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
     optimizer = torch.optim.Adam(net.parameters(), lr=lr)
     # criterion = nn.BCEWithLogitsLoss()
-    criterion = nn.CrossEntropyLoss(
-        weight=torch.tensor(loss_weight), label_smoothing=LABEL_SMOOTHING
-    ).to(device=device)
+    criterion = nn.CrossEntropyLoss().to(device=device)
 
     miou_best = 0
-    train_oa = []
-    train_miou = []
     for epoch in range(epochs):
         net.train()
         epoch_loss = []
@@ -79,6 +73,8 @@ def train(train_dir, test_dir, model_type, save_dir,
             shuffle=True
         )
         # train dataset
+        train_intersect = []
+        train_union = []
         for batch in tqdm(train_loader):
             imgs, mask, name = batch
             imgs = imgs.to(device=device, dtype=torch.float32)
@@ -89,39 +85,35 @@ def train(train_dir, test_dir, model_type, save_dir,
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
-            tmp_oa, tmp_miou = metrics(mask, mask_pred)
-            train_oa.append(tmp_oa)
-            train_miou.append(tmp_miou)
+            tmp_intersect, tmp_union = metrics(mask, mask_pred)
+            train_intersect.append(tmp_intersect)
+            train_union.append(tmp_union)
 
         print(f'epoch{epoch+1}:')
-        train_oa_mean = np.mean(train_oa)
-        train_miou_mean = np.mean(train_miou)
+        train_miou = np.sum(train_intersect) / np.sum(train_union)
         loss_mean = np.mean(epoch_loss)
-        print('loss=%.5f, train oa=%.5f' % (loss_mean, train_oa_mean))
+        print('train: loss=%.5f, miou=%.5f' % (loss_mean, train_miou))
 
         # test dataset
         net.eval()
-        test_oa = []
-        test_miou = []
+        test_intersect = []
+        test_union = []
         for batch in tqdm(test_loader):
             imgs, mask = batch
             imgs = imgs.to(device=device, dtype=torch.float32)
             mask = mask.to(device=device, dtype=torch.long)
             mask_pred = net(imgs)
-            tmp_oa, tmp_miou = metrics(mask, mask_pred)
-            test_oa.append(tmp_oa)
-            test_miou.append(tmp_miou)
-        test_oa_mean = np.mean(test_oa)
-        test_miou_mean = np.mean(test_miou)
+            tmp_intersect, tmp_union = metrics(mask, mask_pred)
+            test_intersect.append(tmp_intersect)
+            test_union.append(tmp_union)
+        test_miou = np.sum(test_intersect) / np.sum(test_union)
         
         writer.add_scalar('loss', loss_mean, epoch+1)
-        writer.add_scalar('oa/train', train_oa_mean, epoch+1)
-        writer.add_scalar('miou/train', train_miou_mean, epoch+1)
-        writer.add_scalar('oa/test', test_oa_mean, epoch+1)
-        writer.add_scalar('miou/test', test_miou_mean, epoch+1)
+        writer.add_scalar('miou/train', train_miou, epoch+1)
+        writer.add_scalar('miou/test', test_miou, epoch+1)
 
         # save model
-        print(f'miou_test: {test_miou_mean}')
-        if (epoch >= 3) and (test_miou_mean > miou_best):
-            miou_best = test_miou_mean
+        print(f'miou_test: {test_miou}')
+        if (epoch >= 3) and (test_miou > miou_best):
+            miou_best = test_miou
             torch.save(net.state_dict(), join(tfdir, 'E%03d.pth' % (epoch+1)))

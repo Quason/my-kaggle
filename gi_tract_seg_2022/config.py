@@ -6,4 +6,4 @@ IMG_AUG = {
     'p_transpose': 0.2
 }
 
-LABEL_SMOOTHING = 0.1
+LABEL_SMOOTHING = 0
