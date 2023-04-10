@@ -1,4 +1,5 @@
 import os
+import random
 import cv2
 import numpy as np
 import shutil
@@ -58,6 +59,8 @@ def rle_decoder(img_dir, csv_fn, dst_dir):
             shutil.copy(img_fn, img_fn_cp)
             if os.path.exists(mask_fn):
                 mask_data_0 = cv2.imread(mask_fn, -1)
+                fg_key = mask_data_0 != 0
+                mask_data[fg_key] = 0
                 mask_data += mask_data_0
             cv2.imwrite(mask_fn, mask_data)
 
@@ -66,7 +69,9 @@ def ds_split(src_dir, target_dir, blank_dir):
     ''' 将有分割目标和无分割目标的分开存放（方便后面双阶段模型训练）
         统计大小: 266: 60%; 276: 5%; 360: 35%
     '''
-    import matplotlib.pyplot as plt
+    os.makedirs(target_dir, exist_ok=True)
+    os.makedirs(blank_dir, exist_ok=True)
+    # import matplotlib.pyplot as plt
     fns = glob(join(src_dir, '*_mask.png'))
     sub_dirs = glob(join(src_dir, '*'))
     for item in sub_dirs:
@@ -91,19 +96,53 @@ def ds_split(src_dir, target_dir, blank_dir):
     for key in size_stat:
         plot_bar.append([key, size_stat[key]])
     plot_bar = np.array(plot_bar)
-    plt.bar(plot_bar[:, 0], plot_bar[:, 1])
-    plt.show()
+    # plt.bar(plot_bar[:, 0], plot_bar[:, 1])
+    # plt.show()
+
+
+def train_test_split(input_dir, output_dir_train, output_dir_test, train_ratio=0.7):
+    ''' train and test dataset split
+    '''
+    mask_fns = glob(join(input_dir, '*mask.png'))
+    sub_dirs = glob(join(input_dir, '*'))
+    os.makedirs(output_dir_train, exist_ok=True)
+    os.makedirs(output_dir_test, exist_ok=True)
+    for sub_dir in sub_dirs:
+        if os.path.isdir(sub_dir):
+            tmp_fns = glob(join(sub_dir, '*mask.png'))
+            mask_fns += tmp_fns
+    fn_cnt = len(mask_fns)
+    fn_index = [i for i in range(fn_cnt)]
+    random.shuffle(fn_index)
+    for i in tqdm(range(fn_cnt)):
+        mask_fn = mask_fns[fn_index[i]]
+        img_fn = mask_fn.replace('_mask.png', '.png')
+        if i < (fn_cnt * train_ratio):
+            mask_fn_cp = join(output_dir_train, split(mask_fn)[-1])
+            img_fn_cp = join(output_dir_train, split(img_fn)[-1])
+        else:
+            mask_fn_cp = join(output_dir_test, split(mask_fn)[-1])
+            img_fn_cp = join(output_dir_test, split(img_fn)[-1])
+        shutil.copy(mask_fn, mask_fn_cp)
+        shutil.copy(img_fn, img_fn_cp)
 
 
 if __name__ == '__main__':
-    # rle_decoder(
-    #     '/Users/marvin/Downloads/uw-madison-gi-tract-image-segmentation/train',
-    #     '/Users/marvin/Downloads/uw-madison-gi-tract-image-segmentation/train.csv',
-    #     '/Users/marvin/Downloads/uw-madison-gi-tract-image-segmentation/train_ds'
-    # )
+    rle_decoder(
+        '/data/qiyuan_data/uw-madison-gi-tract-image-segmentation/train',
+        '/data/qiyuan_data/uw-madison-gi-tract-image-segmentation/train.csv',
+        '/data/qiyuan_data/uw-madison-gi-tract-image-segmentation/ds'
+    )
 
     ds_split(
-        '/Users/marvin/Downloads/uw-madison-gi-tract-image-segmentation/ds_all',
-        '/Users/marvin/Downloads/uw-madison-gi-tract-image-segmentation/ds_has_target',
-        '/Users/marvin/Downloads/uw-madison-gi-tract-image-segmentation/ds_no_target'
+        '/data/qiyuan_data/uw-madison-gi-tract-image-segmentation/ds',
+        '/data/qiyuan_data/uw-madison-gi-tract-image-segmentation/ds_has_target/all',
+        '/data/qiyuan_data/uw-madison-gi-tract-image-segmentation/ds_no_target/all'
+    )
+
+    train_test_split(
+        '/data/qiyuan_data/uw-madison-gi-tract-image-segmentation/ds_no_target/all',
+        '/data/qiyuan_data/uw-madison-gi-tract-image-segmentation/ds_no_target/train',
+        '/data/qiyuan_data/uw-madison-gi-tract-image-segmentation/ds_no_target/test',
+        train_ratio=0.7
     )
