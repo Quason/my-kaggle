@@ -21,9 +21,9 @@ def metrics(mask, mask_pred):
     label_pred = torch.argmax(mask_pred, dim=1)
     intersect = (mask == label_pred) * (mask != 0) * (label_pred != 0)
     union = (mask != 0) + (label_pred != 0)
-    miou = torch.sum(intersect) * 2 / union
+    miou = torch.sum(intersect) * 2 / torch.sum(union)
     oa = torch.sum(mask == label_pred) / mask.numel()
-    return oa, miou
+    return oa.cpu(), miou.cpu()
 
 
 def train(train_dir, test_dir, model_type, save_dir,

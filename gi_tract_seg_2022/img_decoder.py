@@ -128,21 +128,21 @@ def train_test_split(input_dir, output_dir_train, output_dir_test, train_ratio=0
 
 
 if __name__ == '__main__':
-    rle_decoder(
-        '/data/qiyuan_data/uw-madison-gi-tract-image-segmentation/train',
-        '/data/qiyuan_data/uw-madison-gi-tract-image-segmentation/train.csv',
-        '/data/qiyuan_data/uw-madison-gi-tract-image-segmentation/ds'
-    )
+    # rle_decoder(
+    #     '/data/qiyuan_data/uw-madison-gi-tract-image-segmentation/train',
+    #     '/data/qiyuan_data/uw-madison-gi-tract-image-segmentation/train.csv',
+    #     '/data/qiyuan_data/uw-madison-gi-tract-image-segmentation/ds'
+    # )
 
-    ds_split(
-        '/data/qiyuan_data/uw-madison-gi-tract-image-segmentation/ds',
-        '/data/qiyuan_data/uw-madison-gi-tract-image-segmentation/ds_has_target/all',
-        '/data/qiyuan_data/uw-madison-gi-tract-image-segmentation/ds_no_target/all'
-    )
+    # ds_split(
+    #     '/data/qiyuan_data/uw-madison-gi-tract-image-segmentation/ds',
+    #     '/data/qiyuan_data/uw-madison-gi-tract-image-segmentation/ds_has_target/all',
+    #     '/data/qiyuan_data/uw-madison-gi-tract-image-segmentation/ds_no_target/all'
+    # )
 
     train_test_split(
-        '/data/qiyuan_data/uw-madison-gi-tract-image-segmentation/ds_no_target/all',
-        '/data/qiyuan_data/uw-madison-gi-tract-image-segmentation/ds_no_target/train',
-        '/data/qiyuan_data/uw-madison-gi-tract-image-segmentation/ds_no_target/test',
+        '/data/qiyuan_data/uw-madison-gi-tract-image-segmentation/ds_has_target/all',
+        '/data/qiyuan_data/uw-madison-gi-tract-image-segmentation/ds_has_target/train',
+        '/data/qiyuan_data/uw-madison-gi-tract-image-segmentation/ds_has_target/test',
         train_ratio=0.7
     )
