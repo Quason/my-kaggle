@@ -17,7 +17,7 @@ class GIDataset(Dataset):
         resize: 64*64
     '''
     def __init__(self, src_dir, return_name=False, random_aug=False,
-                 mixup=False, target_shape=(256,256)):
+                 mixup=False, target_shape=(256,256), sample_ratio=None):
         ''' dataset init
             src_dir: input path
             return_name: whether to return base name
@@ -31,12 +31,13 @@ class GIDataset(Dataset):
         for sub_dir in sub_dirs:
             if os.path.isdir(sub_dir):
                 fns += glob(join(sub_dir, '*mask.png'))
-        self.fns = fns
         self.return_name = return_name
         self.random_aug = random_aug
         self.mixup = mixup
         self.target_shape = target_shape
-        self.max_value = 16000
+        if sample_ratio is not None:
+            fns = random.sample(fns, int(len(fns)*0.5))
+        self.fns = fns
 
     def _img_aug(self, img_data, mask_data):
         seq = A.Compose(
@@ -55,7 +56,7 @@ class GIDataset(Dataset):
 
     def __getitem__(self, index):
         mask_data = cv2.imread(self.fns[index], -1)
-        img_fn = self.fns[index].replace('_mask.tif', '.tif')
+        img_fn = self.fns[index].replace('_mask.png', '.png')
         img_data = cv2.imread(img_fn, -1)
         mask_data = cv2.resize(mask_data, self.target_shape, cv2.INTER_NEAREST)
         img_data = cv2.resize(img_data, self.target_shape, cv2.INTER_LINEAR)
@@ -74,7 +75,8 @@ class GIDataset(Dataset):
         else:
             if self.random_aug:
                 img_data, mask_data = self._img_aug(img_data, mask_data)
-        img_data = img_data / self.max_value  # normalization
+        max_value = np.max(img_data)
+        img_data = img_data / max_value  # normalization
         img_data[img_data > 1] = 1
         img_data = np.expand_dims(img_data, axis=0)
         if self.return_name:
@@ -84,5 +86,4 @@ class GIDataset(Dataset):
             return img_data, mask_data
     
     def __len__(self):
-        # return len(self.fns)
-        return 1000
+        return len(self.fns)

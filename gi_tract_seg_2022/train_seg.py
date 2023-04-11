@@ -29,7 +29,9 @@ def train(train_dir, test_dir, model_type, save_dir,
           loss_weight=[0.1, 0.3, 0.3, 0.3],
           lr=1e-4,
           epochs=500,
-          batch_size=10):
+          batch_size=10,
+          sample_ratio=None,
+          target_shape=None):
     device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
     dtime = datetime.strftime(datetime.now(), '%Y%m%d%H%M%S')
     tfdir = join(save_dir, dtime)
@@ -48,7 +50,8 @@ def train(train_dir, test_dir, model_type, save_dir,
         return_name=False,
         random_aug=False,
         mixup=test_mixup,
-        target_shape=(256,256)
+        target_shape=target_shape,
+        sample_ratio=None
     )
     test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
     optimizer = torch.optim.Adam(net.parameters(), lr=lr)
@@ -57,26 +60,27 @@ def train(train_dir, test_dir, model_type, save_dir,
 
     miou_best = 0
     for epoch in range(epochs):
+        print(f'epoch{epoch+1}:')
         net.train()
         epoch_loss = []
         train_dataset = GIDataset(
             train_dir,
-            return_name=True,
+            return_name=False,
             random_aug=True,
             mixup=False,
-            target_shape=(256,256),
-            
+            target_shape=target_shape,
+            sample_ratio=sample_ratio
         )
         train_loader = DataLoader(
             train_dataset,
             batch_size=batch_size,
-            shuffle=True
+            shuffle=True,
         )
         # train dataset
         train_intersect = []
         train_union = []
         for batch in tqdm(train_loader):
-            imgs, mask, name = batch
+            imgs, mask = batch
             imgs = imgs.to(device=device, dtype=torch.float32)
             mask = mask.to(device=device, dtype=torch.long)
             mask_pred = net(imgs)
@@ -89,7 +93,6 @@ def train(train_dir, test_dir, model_type, save_dir,
             train_intersect.append(tmp_intersect)
             train_union.append(tmp_union)
 
-        print(f'epoch{epoch+1}:')
         train_miou = np.sum(train_intersect) / np.sum(train_union)
         loss_mean = np.mean(epoch_loss)
         print('train: loss=%.5f, miou=%.5f' % (loss_mean, train_miou))

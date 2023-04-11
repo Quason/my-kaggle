@@ -15,54 +15,59 @@ IMG_TYPE_LUT = {
 }
 
 
-def rle_decoder(img_dir, csv_fn, dst_dir):
+def rle_decoder(img_dir, csv_fn, dst_dir, do_resize=None):
     # case2_day4_slice_0045
     # case2/case2_day1/scans/slice_0001_266_266_1.50_1.50.png
     with open(csv_fn, 'r') as fp:
         lines = fp.readlines()
-        for line in tqdm(lines[1:]):
-            line = line.replace('\n', '')
-            line_item = line.split(',')
-            line_item = [item for item in line_item if item]
-            name = line_item[0]
-            img_class = IMG_TYPE_LUT[line_item[1]]
-            if len(line_item) == 3:
-                rle_code = line_item[-1]
-                rle_code = rle_code.split(' ')
-                rle_code = np.array([int(i) for i in rle_code])
-                rle_code = rle_code.reshape((-1, 2))
-            else:
-                rle_code = None
-            case_name = name.split('_')[0]
-            day_name = name.split('_')[1]
-            slice_name = name.split('_')[-1]
-            img_fn = glob(join(
-                img_dir,
-                case_name,
-                f'{case_name}_{day_name}',
-                'scans',
-                f'slice_{slice_name}_*'
-            ))
-            img_fn = img_fn[0]
-            img_data = cv2.imread(img_fn, -1)
-            mask_data = np.zeros(img_data.size, np.uint8)
-            if rle_code is not None:
-                for i in range(rle_code.shape[0]):
-                    i0 = rle_code[i][0]
-                    i1 = rle_code[i][0] + rle_code[i][1]
-                    mask_data[i0:i1] = img_class
-            mask_data = mask_data.reshape(img_data.shape)
-            dst_dir_tmp = join(dst_dir, f'{case_name}_{day_name}')
-            os.makedirs(dst_dir_tmp, exist_ok=True)
-            mask_fn = join(dst_dir_tmp, f'{case_name}_{day_name}_{slice_name}_mask.png')
-            img_fn_cp = join(dst_dir_tmp, f'{case_name}_{day_name}_{slice_name}.png')
-            shutil.copy(img_fn, img_fn_cp)
-            if os.path.exists(mask_fn):
-                mask_data_0 = cv2.imread(mask_fn, -1)
-                fg_key = mask_data_0 != 0
-                mask_data[fg_key] = 0
-                mask_data += mask_data_0
-            cv2.imwrite(mask_fn, mask_data)
+    csv_lut = {}
+    for line in lines[1:]:
+        line = line.replace('\n', '')
+        line_item = line.split(',')
+        line_item = [item for item in line_item if item]
+        name_key = line_item[0]
+        if name_key in csv_lut:
+            csv_lut[name_key].append(line_item[1:])
+        else:
+            csv_lut[name_key] = [line_item[1:]]
+
+    for name in tqdm(csv_lut):
+        case_name = name.split('_')[0]
+        day_name = name.split('_')[1]
+        slice_name = name.split('_')[-1]
+        img_fn = glob(join(
+            img_dir,
+            case_name,
+            f'{case_name}_{day_name}',
+            'scans',
+            f'slice_{slice_name}_*'
+        ))
+        img_fn = img_fn[0]
+        img_data = cv2.imread(img_fn, -1)
+        mask_data = np.zeros(img_data.size, np.uint8)
+        for item in csv_lut[name]:
+            img_class = IMG_TYPE_LUT[item[0]]
+            if len(item) == 1:
+                continue
+            rle_code = item[-1]
+            rle_code = rle_code.split(' ')
+            rle_code = np.array([int(i) for i in rle_code])
+            rle_code = rle_code.reshape((-1, 2))
+            for i in range(rle_code.shape[0]):
+                i0 = rle_code[i][0]
+                i1 = rle_code[i][0] + rle_code[i][1]
+                mask_data[i0:i1] = img_class
+    
+        mask_data = mask_data.reshape(img_data.shape)
+        dst_dir_tmp = join(dst_dir, f'{case_name}_{day_name}')
+        os.makedirs(dst_dir_tmp, exist_ok=True)
+        mask_fn = join(dst_dir_tmp, f'{case_name}_{day_name}_{slice_name}_mask.png')
+        img_fn_cp = join(dst_dir_tmp, f'{case_name}_{day_name}_{slice_name}.png')
+        if do_resize is not None:
+            img_data = cv2.resize(img_data, do_resize, cv2.INTER_LINEAR)
+            mask_data = cv2.resize(mask_data, do_resize, cv2.INTER_NEAREST)
+        cv2.imwrite(img_fn_cp, img_data)
+        cv2.imwrite(mask_fn, mask_data)
 
 
 def ds_split(src_dir, target_dir, blank_dir):
@@ -131,7 +136,8 @@ if __name__ == '__main__':
     # rle_decoder(
     #     '/data/qiyuan_data/uw-madison-gi-tract-image-segmentation/train',
     #     '/data/qiyuan_data/uw-madison-gi-tract-image-segmentation/train.csv',
-    #     '/data/qiyuan_data/uw-madison-gi-tract-image-segmentation/ds'
+    #     '/data/qiyuan_data/uw-madison-gi-tract-image-segmentation/ds',
+    #     do_resize=None
     # )
 
     # ds_split(
