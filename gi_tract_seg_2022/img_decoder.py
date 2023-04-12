@@ -146,9 +146,11 @@ if __name__ == '__main__':
     #     '/data/qiyuan_data/uw-madison-gi-tract-image-segmentation/ds_no_target/all'
     # )
 
-    train_test_split(
-        '/data/qiyuan_data/uw-madison-gi-tract-image-segmentation/ds_has_target/all',
-        '/data/qiyuan_data/uw-madison-gi-tract-image-segmentation/ds_has_target/train',
-        '/data/qiyuan_data/uw-madison-gi-tract-image-segmentation/ds_has_target/test',
-        train_ratio=0.7
-    )
+    # train_test_split(
+    #     '/data/qiyuan_data/uw-madison-gi-tract-image-segmentation/ds_no_target/all',
+    #     '/data/qiyuan_data/uw-madison-gi-tract-image-segmentation/ds_no_target/train',
+    #     '/data/qiyuan_data/uw-madison-gi-tract-image-segmentation/ds_no_target/test',
+    #     train_ratio=0.7
+    # )
+
+    pass
