@@ -7,6 +7,7 @@ import numpy as np
 from os.path import join
 from tqdm import tqdm
 from torch.utils.data import Dataset, DataLoader
+from gi_tract_seg_2022.models import mscff
 
 
 IMG_TYPE_LUT = {
@@ -52,48 +53,58 @@ class GIDataset(Dataset):
     def __getitem__(self, index):
         img_fn, name_uid = self.fns[index]
         img_data = cv2.imread(img_fn, -1)
+        raw_size = img_data.shape
         img_data = cv2.resize(img_data, self.target_shape, cv2.INTER_LINEAR)
         max_value = np.max(img_data)
         img_data = img_data.astype(np.float32) / max_value  # normalization
         img_data[img_data > 1] = 1
         img_data = np.expand_dims(img_data, axis=0)
-        return img_data, name_uid
+        return img_data, name_uid, raw_size
 
     def __len__(self):
-        # return len(self.fns)
-        return 10
+        return len(self.fns)
 
 
 def main():
     src_dir = '/data/qiyuan_data/uw-madison-gi-tract-image-segmentation/train'
-    model_fn = '/root/qiyuan/codes/my-kaggle/data/tflogs/20230411071211/E402.pt'
+    model_fn = '/root/qiyuan/codes/my-kaggle/data/tflogs/20230411071211/E478.pth'
     dst_fn = '/root/qiyuan/codes/my-kaggle/data/output_test/submission.csv'
+    bsize = 20
 
     fp = open(dst_fn, 'w')
     fp.write('id,class,predicted\n')
     device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
     pred_dataset = GIDataset(src_dir, target_shape=(128,128))
-    pred_loader = DataLoader(pred_dataset, batch_size=1, shuffle=False)
-    net = torch.load(model_fn)
+    pred_loader = DataLoader(pred_dataset, batch_size=bsize, shuffle=False)
+    net = mscff.MSCFF(1, 4)
+    net.load_state_dict(torch.load(model_fn, map_location=device))
     net.to(device=device)
     net.eval()
     for batch in tqdm(pred_loader):
-        imgs, name_uid = batch
+        imgs, name_uid, raw_size = batch
         imgs = imgs.to(device=device, dtype=torch.float32)
-        mask_pred = torch.squeeze(net(imgs))
+        mask_pred = torch.squeeze(torch.argmax(net(imgs), dim=1))
         mask_pred = mask_pred.cpu().detach().numpy()
-        for key in IMG_TYPE_LUT:
-            mask_tmp = (mask_pred == IMG_TYPE_LUT[key]).astype(np.uint8)
-            starts_ix, lengths = rle_encoder(mask_tmp)
-            rle_code = []
-            if len(starts_ix) > 0:
-                for i in range(len(starts_ix)):
-                    rle_code.append(str(starts_ix[i]))
-                    rle_code.append(str(lengths[i]))
-                rle_code = ' '.join(rle_code)
-            else:
-                rle_code = ''
-            fp.write(f'{name_uid[0]},{key},{rle_code}\n')
+
+        for bi in range(imgs.shape[0]):
+            mask_pred_tmp = mask_pred[bi, :, :]
+            raw_size_tmp = [raw_size[0][bi], raw_size[1][bi]]
+            mask_pred_tmp = cv2.resize(
+                mask_pred_tmp.astype(np.uint8),
+                (int(raw_size_tmp[1]), int(raw_size_tmp[0])), cv2.INTER_NEAREST)
+            for key in IMG_TYPE_LUT:
+                mask_tmp = (mask_pred_tmp == IMG_TYPE_LUT[key]).astype(np.uint8)
+                starts_ix, lengths = rle_encoder(mask_tmp)
+                rle_code = []
+                if len(starts_ix) > 0:
+                    for i in range(len(starts_ix)):
+                        rle_code.append(str(starts_ix[i]))
+                        rle_code.append(str(lengths[i]))
+                    rle_code = ' '.join(rle_code)
+                else:
+                    rle_code = ''
+                fp.write(f'{name_uid[0]},{key},{rle_code}\n')
+    fp.close()
 
 
 if __name__ == '__main__':
