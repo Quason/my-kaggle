@@ -103,7 +103,7 @@ def main():
                     rle_code = ' '.join(rle_code)
                 else:
                     rle_code = ''
-                fp.write(f'{name_uid[0]},{key},{rle_code}\n')
+                fp.write(f'{name_uid[bi]},{key},{rle_code}\n')
     fp.close()
 
 
